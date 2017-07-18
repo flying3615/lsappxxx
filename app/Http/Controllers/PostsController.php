@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Post;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class PostsController extends Controller
 {
@@ -55,12 +56,32 @@ class PostsController extends Controller
         $this->validate($request,[
            'title' => 'required',
            'body' => 'required',
+            'cover_image' => 'image|nullable|max:1999'
         ]);
+
+        //handle file upload
+
+        if($request->hasFile('cover_image')){
+            //Get file name with the extension
+            $fileNameWithExt = $request->file('cover_image')->getClientOriginalName();
+            //get just filename
+            $filename = pathinfo($fileNameWithExt,PATHINFO_FILENAME);
+            $extension = $request->file('cover_image')->getClientOriginalExtension();
+            //File name to store
+            $fileNameToStore=$filename.'_'.time().'.'.$extension;
+            //Upload Image
+            //it's going to store images into /Applications/XAMPP/xamppfiles/htdocs/lsappxxx/storage/app/public
+            $path = $request->file('cover_image')->storeAs('public/cover_images',$fileNameToStore);
+            //get just extension
+        }else{
+            $fileNameToStore = 'noimage.jpg';
+        }
 
         $post = new Post;
         $post->title = $request->input('title');
         $post->body = $request->input('body');
         $post->user_id = auth()->user()->id;
+        $post->cover_image=$fileNameToStore;
         $post->save();
         return redirect('/posts')->with('success','Post created');
     }
@@ -102,9 +123,29 @@ class PostsController extends Controller
      */
     public function update(Request $request, $id)
     {
+
+        if($request->hasFile('cover_image')){
+            //Get file name with the extension
+            $fileNameWithExt = $request->file('cover_image')->getClientOriginalName();
+            //get just filename
+            $filename = pathinfo($fileNameWithExt,PATHINFO_FILENAME);
+            $extension = $request->file('cover_image')->getClientOriginalExtension();
+            //File name to store
+            $fileNameToStore=$filename.'_'.time().'.'.$extension;
+            //Upload Image
+            //it's going to store images into /Applications/XAMPP/xamppfiles/htdocs/lsappxxx/storage/app/public
+            $path = $request->file('cover_image')->storeAs('public/cover_images',$fileNameToStore);
+            //get just extension
+        }
+
         $post = Post::find($id);
         $post->title = $request->input('title');
         $post->body = $request->input('body');
+
+        if($request->hasFile('cover_image')) {
+            $post->cover_image=$fileNameToStore;
+        }
+
         $post->save();
         return redirect('/posts')->with('success','Post updated');
     }
@@ -118,6 +159,16 @@ class PostsController extends Controller
     public function destroy($id)
     {
         $post = Post::find($id);
+
+        if(auth()->user()->id!==$post->user_id){
+            return redirect('/posts')->with('error','Unauthorized Page');
+        }
+
+        if($post->cover_image!='noimage.jpg'){
+            //delete image
+            Storage::delete('public/cover_images/'.$post->cover_image);
+        }
+
         $post->delete();
         return redirect('/posts')->with('success','Post Removed');
     }
